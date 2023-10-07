@@ -1,0 +1,82 @@
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.impute import SimpleImputer
+from google.colab import drive
+import numpy as np
+
+# Mount Google Drive
+drive.mount('/content/drive')
+
+# Define the file path in your Google Drive
+file_path = '/content/drive/My Drive/ES.csv'
+
+# Load the dataset from Google Drive
+df = pd.read_csv(file_path)
+
+def preprocess_data(df):
+    # Find rows with missing values
+    missing_rows = df[df.isnull().any(axis=1)]
+
+    if not missing_rows.empty:
+        print("Rows with missing values:")
+        print(missing_rows)
+
+    # Preprocess the dataset: Replace NaN values with column means for numeric columns only
+    numeric_columns = ['Open', 'High', 'Low', 'Volume', 'Close']
+    imputer = SimpleImputer(strategy='mean')
+    df[numeric_columns] = imputer.fit_transform(df[numeric_columns])
+
+    # Add a datetime column for easy filtering
+    df['Date and Time'] = pd.to_datetime(df['Date and Time'])
+
+    return df
+
+def generativemodel1(df):
+    # Exclude the last row for training
+    train_data = df.iloc[:-1]
+
+    # Define the features (X) and target variables (y) for the first step of prediction
+    X_step1 = train_data[['Open']]
+    y_step1 = train_data[['High', 'Low', 'Close', 'Volume']]
+
+    # Get the last row for prediction
+    last_row = df.iloc[-1]
+
+    # Create and train a simple Linear Regression model for step 1 using the entire dataset except the last row
+    model_step1 = LinearRegression()
+    model_step1.fit(X_step1, y_step1)
+
+    # Specify the date and time to predict
+    date_to_predict = pd.Timestamp('2023-09-16 09:30:00')
+
+    # Create a DataFrame to store the prediction for the specified date and time
+    prediction_specified_datetime = pd.DataFrame({
+        'Date and Time': [date_to_predict],
+        'Open': [last_row['Open']]
+    })
+
+    # Make predictions for 'High', 'Low', 'Close', and 'Volume' using the trained model
+    X_specified_datetime = np.array(last_row['Open']).reshape(1, -1)
+    y_pred_specified_datetime = model_step1.predict(X_specified_datetime)
+
+    prediction_specified_datetime['High'] = y_pred_specified_datetime[0][0]
+    prediction_specified_datetime['Low'] = y_pred_specified_datetime[0][1]
+    prediction_specified_datetime['Close'] = y_pred_specified_datetime[0][2]
+    prediction_specified_datetime['Volume'] = y_pred_specified_datetime[0][3]
+
+    return prediction_specified_datetime
+
+# Preprocess the data
+df = preprocess_data(df)
+
+# Call the generativemodel1 function to predict High, Low, Close, and Volume for 2023-09-16 09:30:00
+high_low_close_volume_prediction = generativemodel1(df)
+
+# Append the prediction to the DataFrame df
+df = pd.concat([df, high_low_close_volume_prediction], ignore_index=True)
+
+# Update the CSV file with the new data
+df.to_csv(file_path, index=False)
+
+# Print the updated DataFrame
+print(df)
